@@ -1,0 +1,1 @@
+-v0 incluye una formulación del problema con sparsity, logit entre red nueva y actual, sin delay, con costes de capacidad lineales y solo la distancia como función de utilidad para los pasajeros
