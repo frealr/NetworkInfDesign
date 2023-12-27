@@ -1,3 +1,5 @@
 -v0 incluye una formulación del problema con sparsity, logit entre red nueva y actual, sin delay, con costes de capacidad lineales y solo la distancia como función de utilidad para los pasajeros
 
 -v1 incluye la formulación con sparsity, logit y delay, con costes de capacidad lineales y solo la distancia como funcion de utilidad para los pasajeros.
+
+-v2 incluye la formulación explicada en overleaf en el enlace https://www.overleaf.com/project/657eb186d967ee4828a4a325, y las instancias del problema para distintos valores de parámetros corren paralelamente utilizando hilos.
