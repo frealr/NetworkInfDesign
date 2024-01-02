@@ -43,9 +43,30 @@ for i = 1:length(betas)
         load(filename);
         budgets(i,j) = budget;
         att_dem(i,j) = sum(sum(f.*demand));
-        nlinks(i,j) = sum(sum(a > 1));
+        nlinks(i,j) = sum(s)
     end
 end
+% 
+% for ins = 1:length(betas)
+%     beta = betas(ins);
+%     filename = sprintf('./results/betas/sol_beta=%d_fixedcostfifth.mat',beta);
+%     load(filename);
+%     budgets_15(ins) = budget;
+% end
+% 
+% for ins = 1:length(betas_onlyfixed)
+%     beta = betas(ins);
+%     filename = sprintf('./results/betas/sol_beta=%d_onlyfixedcost.mat',beta);
+%     load(filename);
+%     budgets_onlyfixed(ins) = budget;
+% end
+% 
+% for ins = 1:length(betas_nofixed)
+%     beta = betas_nofixed(ins);
+%     filename = sprintf('./results/betas/sol_beta=%d_nofixedcost.mat',beta);
+%     load(filename);
+%     budgets_nofixed(ins) = budget;
+% end
 
 figure;
 for i = 1:length(lams)
@@ -60,21 +81,11 @@ legend('\lambda = 0','\lambda = 1','\lambda = 5','\lambda = 10');
 
 figure;
 for i = 1:length(lams)
-    plot(betas,nlinks(:,i),'-x','LineWidth',1);
+    plot(budgets(:,i),budgets(:,i)./att_dem(:,i),'-x','LineWidth',1);
     hold on;
 end
 
-xlabel('\beta'); ylabel('number of constructed links'); grid on;
-title('constructed links vs \beta for different \lambda values');
-legend('\lambda = 0','\lambda = 1','\lambda = 5','\lambda = 10');
-
-figure;
-for i = 1:length(lams)
-    plot(betas,att_dem(:,i)/sum(sum(demand)),'-x','LineWidth',1);
-    hold on;
-end
-
-xlabel('\beta'); ylabel('attracted demand'); grid on;
+xlabel('budget'); ylabel('cost per passenger'); grid on;
 title('attracted demand vs \beta for different \lambda values');
 legend('\lambda = 0','\lambda = 1','\lambda = 5','\lambda = 10');
 %% 
