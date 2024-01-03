@@ -10,10 +10,9 @@ In this folder you can find both Python CVXPY & Matlab CVXr implementations for 
 
 - v2 (Python CVXPY & Matlab CVXr) includes the complete formulation of the model proposed on [the paper](https://reponame/blob/master/CONTRIBUTING.md). The Python CVXPY version can run many instances of the problem at the same time as it uses threading. Although Matlab CVXr doesn't allow parallel computing, the instances run faster, so it is recommended to use this file.
 
+# Results folder
+
+- .npz files contain the results for simulations computed on Python CVXPY. Structure (introducir).
+- .mat files contain the results for simulations computed on Matlab CVXr. Structure (introducir).
 
 
-
-
--en la carpeta results tenemos carpetas con barridos en distintos parámetros, y dentro los archivos con la solución resultante.
-
--en la carpeta logs tenemos carpetas con barridos en distintos parámetros, y dentro los archivos con el valor objetivo y el presupuesto utilizado.
