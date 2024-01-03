@@ -1,6 +1,10 @@
-# Code Files
+# Introduction
 
--v0 incluye una formulación del problema con sparsity, logit entre red nueva y actual, sin delay, con costes de capacidad lineales y solo la distancia como función de utilidad para los pasajeros
+In this folder you can find both Python CVXPY & Matlab CVXr implementations for the optimization model proposed on [the paper](https://reponame/blob/master/CONTRIBUTING.md). #v0 and #v1 are simplifications of the proposed model, meanwhile #v2 contains the complete model.
+
+# Code Files
+#v0 
+- incluye una formulación del problema con sparsity, logit entre red nueva y actual, sin delay, con costes de capacidad lineales y solo la distancia como función de utilidad para los pasajeros
 
 -v1 incluye la formulación con sparsity, logit y delay, con costes de capacidad lineales y solo la distancia como funcion de utilidad para los pasajeros.
 
