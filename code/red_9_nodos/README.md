@@ -8,7 +8,9 @@ In this folder you can find both Python CVXPY & Matlab CVXr implementations for 
 
 - v1 (Python CVXPY) introduces congestion costs to the formulation proposed on [v0](#v0).
 
-- v2 (Python CVXPY & Matlab CVXr) includes the complete formulation of the model proposed on [the paper] (https://reponame/blob/master/CONTRIBUTING.md). The Python CVXPY version can run many instances of the problem at the same time as it uses threading. Although Matlab CVXr doesn't allow parallel computing, the instances run faster, so it is recommended to use this file.
+- v2 (Python CVXPY & Matlab CVXr) includes the complete formulation of the model proposed on [the paper](https://reponame/blob/master/CONTRIBUTING.md). The Python CVXPY version can run many instances of the problem at the same time as it uses threading. Although Matlab CVXr doesn't allow parallel computing, the instances run faster, so it is recommended to use this file.
+
+
 
 
 
