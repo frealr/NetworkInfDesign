@@ -93,7 +93,7 @@ congestion_coef_stations = 0.1 .* ones(1, n);
 congestion_coef_links = 0.1 .* ones(n);
 
 % Prices
-prices = (distance).^(0.7);
+prices = 0.1.*(distance).^(0.7);
 %prices = zeros(n);
 
 % Travel Time
@@ -103,26 +103,39 @@ travel_time = 60 .* distance ./ 30; % Time in minutes
 alt_time = 60 .* alt_cost ./ 30; % Time in minutes
 
 
-a_nom = 588;
-betas = [0,1,10,20,30,40,50];
-lams = [0,1,5,10];
+a_nom = 588;             
+
+
+%betas  = [0,1,5,10,15,20,25,27,30,35,40,50];
+%lams = [0,20,30,35,40,45];
+betas = [1,3,5,7,10,12];
+lams = [3,5];
 tau = 0.57;
 eta = 0.25;
 a_max = 1e9;
 eps = 1e-3;
 %% Resolución de las instancias
-
-niters = 8;
+cvx_solver_settings -clearall
+cvx_save_prefs
+niters = 15;
 for ins=1:length(betas)
     for ll=1:length(lams)
         lam = lams(ll);
-        a_prev = ones(n);
-        s_prev= ones(n,1);
+        a_prev = 1e4.*ones(n);
+        s_prev= 1e4.*ones(n,1);
+
+        aa_prev = a_prev;
+        ss_prev = s_prev;
+
+
+
         beta = betas(ins);
-        disp(beta)
+        disp(beta);
         tic;
         for iter=1:niters
-            cvx_begin
+            cong_prev_a = (log(0.5.*aa_prev+1+eps)./4);
+            cong_prev_s = (log(0.5.*ss_prev+1+eps)./4);
+            cvx_begin quiet
                 variable s(n)
                 variable s_prim(n)
                 variable delta_s(n)
@@ -133,17 +146,19 @@ for ins=1:length(betas)
                 variable fext(n,n)
                 variable fij(n,n,n,n)
                 obj = 0;
-                obj = obj + 1e-6*sum(station_capacity_slope'.*s_prim);
-                obj = obj + 1e-6*beta*(sum(sum(link_capacity_slope.*a_prim)))  %linear construction costs
+                obj = obj + 1e-6*beta*sum(station_capacity_slope'.*s_prim);
+                obj = obj + 1e-6*beta*(sum(sum(link_capacity_slope.*a_prim)));  %linear construction costs
                 obj = obj + 1e-6*(sum(sum(op_link_cost.*a_prim))); %operation costs
                 if iter < niters
-                    obj = obj + 1e-6*lam*beta*sum(sum((a.*(5000./(500.*a_prev+eps)))))./2 + 1e-6*beta*lam*sum((s.*(1./(s_prev+eps)))); %fixed construction costs
-                    obj = obj + 1e-6*(sum(sum(inv_pos(congestion_coef_links.*delta_a + eps)))) + 1e-6*(sum(inv_pos(congestion_coef_stations'.*delta_s + eps))); %congestion costs
+                    %obj = obj + 1e-6*lam*beta*sum(sum((link_cost.*a.*(1./(a_prev+eps))))) + 1e-6*lam*beta*sum((station_cost'.*s.*(1./(s_prev+eps)))); %fixed construction costs
+                    obj = obj + 1e-6*(sum(sum(cong_prev_a.*inv_pos(congestion_coef_links.*delta_a + eps)))) + 1e-6*(sum(cong_prev_s.*inv_pos(congestion_coef_stations'.*delta_s + eps))); %congestion costs
+                    obj = obj + 1e-6*lam*beta*sum(sum((link_cost.*a_prim.*(1./(a_prev+eps))))) + 1e-6*lam*beta*sum((station_cost'.*s_prim.*(1./(s_prev+eps)))); %fixed construction costs
+                    
                 end
         
                 for o=1:n
                     for d=1:n
-                        obj = obj + 1e-6*(demand(o,d).*sum(sum((travel_time+prices).*fij(:,:,o,d))));
+                        obj = obj + 1e-6*(demand(o,d).*sum(sum((travel_time+prices).*fij(:,:,o,d)))); 
                     end
                 end
                 obj = obj + 1e-6*(sum(sum(demand.*alt_time.*fext)));
@@ -162,10 +177,10 @@ for ins=1:length(betas)
                              end
                          end
                      end
-                 end
+                end
         
                 minimize obj
-                disp('planteo constraints')
+                %disp('planteo constraints')
                 s >= 0;
                 s_prim >= 0;
                 delta_s >= 0;
@@ -211,10 +226,20 @@ for ins=1:length(betas)
                     f(o,o) == 0;
                     fij(:,o,o,:) == 0;
                 end
+                for d=1:n
+                    fij(d,:,:,d) == 0;
+                end
                 for o=1:n
                     for d=1:n
                         if o ~= d
                             f(o,d) + fext(o,d) == 1;
+                        end
+                    end
+                end
+                for i=1:n
+                    for j=1:n
+                        if ~ismember(j,candidates{i})
+                            a_prim(i,j) == 0;
                         end
                     end
                 end
@@ -232,16 +257,22 @@ for ins=1:length(betas)
                  end
         
             cvx_end
-            a_prev = a;
-            s_prev = s;
+            a_prev = a_prim;
+            s_prev = s_prim;
+            aa_prev = a;
+            ss_prev = s;
+            disp(['nlinks =',num2str(sum(sum(a > 1)))]);
         end
         disp(beta);
         disp(sum(sum(a > 1)));
-        obj_val = cvx_optval;
+        obj_val = get_obj_val(op_link_cost,congestion_coef_links, ...
+                congestion_coef_stations,travel_time,prices,alt_time,a_prim,delta_a, ...
+                s_prim,delta_s,fij,f,fext,n,demand);
         comp_time = toc;
         budget = get_budget(s,s_prim,a,a_prim,n,...
-            station_cost,station_capacity_slope,link_cost,link_capacity_slope);
-        filename = sprintf('./results/betas/sol_beta=%d_lam=%d.mat',beta,lam);
+            station_cost,station_capacity_slope,link_cost,link_capacity_slope,lam);
+        disp(['budget = ',num2str(budget)]);
+        filename = sprintf('./results/betas/sol_log2_beta_sparsityprim=%d_lam=%d.mat',beta,lam);
         save(filename,'s','s_prim','delta_s', ...
             'a','a_prim','delta_a','f','fext','fij','obj_val','comp_time','budget');
     end
@@ -249,18 +280,44 @@ end
 
 
 function budget = get_budget(s,s_prim,a,a_prim,n,...
-    station_cost,station_capacity_slope,link_cost,link_capacity_slope)
+    station_cost,station_capacity_slope,link_cost,link_capacity_slope,lam)
     budget = 0;
     for i=1:n
         if s(i) > 1e-3
-            budget = budget + station_cost(i) + ...
+            budget = budget + lam*station_cost(i) + ...
                 station_capacity_slope(i)*s_prim(i);
         end
         for j=1:n
             if a(i,j) > 1e-3
-                budget = budget + link_cost(i,j) + ...
+                budget = budget + lam*link_cost(i,j) + ...
                     link_capacity_slope(i,j) * a_prim(i,j);
             end
         end
     end
+end
+
+function obj_val = get_obj_val(op_link_cost,congestion_coef_links, ...
+    congestion_coef_stations,travel_time,prices,alt_time,a_prim,delta_a, ...
+    s_prim,delta_s,fij,f,fext,n,demand)
+    obj_val = 0;
+    eps = 1e-3;
+    obj_val = obj_val + 1e-6*(sum(sum(op_link_cost.*a_prim)));
+    for i=1:n
+        if s_prim > eps
+            obj_val = obj_val + 1e-6*inv_pos(congestion_coef_stations(i)*delta_s(i) + eps);
+        end
+        for j=1:n
+            if a_prim > eps
+                obj_val = obj_val + 1e-6*inv_pos(congestion_coef_links(i,j)*delta_a(i,j) + eps);
+            end
+        end
+    end
+    for o=1:n
+        for d=1:n
+            obj_val = obj_val + 1e-6*(demand(o,d).*sum(sum((travel_time+prices).*fij(:,:,o,d))));
+        end
+    end
+    obj_val = obj_val + 1e-6*(sum(sum(demand.*alt_time.*fext)));
+    obj_val = obj_val + 1e-6*(sum(sum(demand.*(-entr(f) - f))));
+    obj_val = obj_val + 1e-6*(sum(sum(demand.*(-entr(fext) - fext))));
 end
