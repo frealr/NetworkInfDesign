@@ -110,31 +110,31 @@ a_nom = 588;
 %lams = [0,20,30,35,40,45];
 betas = [1,3,5,7,10,12];
 lams = [3,5];
+
+betas = [7];
+lams = [3];
+
 tau = 0.57;
 eta = 0.25;
 a_max = 1e9;
 eps = 1e-3;
+
 %% Resolución de las instancias
-cvx_solver_settings -clearall
+cvx_solver mosek
+cvx_precision high
 cvx_save_prefs
 niters = 15;
+alfa = 0;
 for ins=1:length(betas)
     for ll=1:length(lams)
         lam = lams(ll);
         a_prev = 1e4.*ones(n);
         s_prev= 1e4.*ones(n,1);
-
-        aa_prev = a_prev;
-        ss_prev = s_prev;
-
-
-
         beta = betas(ins);
         disp(beta);
         tic;
         for iter=1:niters
-            cong_prev_a = (log(0.5.*aa_prev+1+eps)./4);
-            cong_prev_s = (log(0.5.*ss_prev+1+eps)./4);
+
             cvx_begin quiet
                 variable s(n)
                 variable s_prim(n)
@@ -145,13 +145,14 @@ for ins=1:length(betas)
                 variable f(n,n)
                 variable fext(n,n)
                 variable fij(n,n,n,n)
-                obj = 0;
+                obj_pax = 0;
+                obj_op = 0;
+                beta_terms = 0;
                 obj = obj + 1e-6*beta*sum(station_capacity_slope'.*s_prim);
                 obj = obj + 1e-6*beta*(sum(sum(link_capacity_slope.*a_prim)));  %linear construction costs
                 obj = obj + 1e-6*(sum(sum(op_link_cost.*a_prim))); %operation costs
                 if iter < niters
-                    %obj = obj + 1e-6*lam*beta*sum(sum((link_cost.*a.*(1./(a_prev+eps))))) + 1e-6*lam*beta*sum((station_cost'.*s.*(1./(s_prev+eps)))); %fixed construction costs
-                    obj = obj + 1e-6*(sum(sum(cong_prev_a.*inv_pos(congestion_coef_links.*delta_a + eps)))) + 1e-6*(sum(cong_prev_s.*inv_pos(congestion_coef_stations'.*delta_s + eps))); %congestion costs
+                    obj = obj + 1e-6*(sum(sum(inv_pos(congestion_coef_links.*delta_a + eps)))) + 1e-6*(sum(inv_pos(congestion_coef_stations'.*delta_s + eps))); %congestion costs
                     obj = obj + 1e-6*lam*beta*sum(sum((link_cost.*a_prim.*(1./(a_prev+eps))))) + 1e-6*lam*beta*sum((station_cost'.*s_prim.*(1./(s_prev+eps)))); %fixed construction costs
                     
                 end
@@ -277,6 +278,8 @@ for ins=1:length(betas)
             'a','a_prim','delta_a','f','fext','fij','obj_val','comp_time','budget');
     end
 end
+
+%%
 
 
 function budget = get_budget(s,s_prim,a,a_prim,n,...

@@ -120,8 +120,12 @@ betas = [1,3,5,7,10,12];
 lams = [3];
 lams = [5];
 
-budgets = [105702.8087,98606.6597,87953.0112]; % lam 5, sparsity en aprim
-betas = [1,3,5];
+budgets = [81327.9302,76993.8167,74627.5205,67863.9345]; % lam 3, sparsity en aprim
+budgets = [102814.5832,97210.1069,87926.5848,81032.1355]; %lam 5, sparsity en aprim
+budgets = [61174.9817,32242.6274]; %lam 3, sparsity en aprim
+budgets = [32242.6274];
+budgets = [22030.5682,4063.3566]; %lam 5, sparsity en aprim
+betas = [10,12];
 lams = [5];
 
 tau = 0.57;
@@ -132,7 +136,9 @@ M = 1e6;
 %% Resolución de las instancias
 
 niters = 2;
-cvx_solver_settings -clearall
+cvx_solver mosek
+cvx_precision default
+cvx_solver_settings('MSK_DPAR_OPTIMIZER_MAX_TIME', 1000.0);
 cvx_save_prefs
 for ins=1:length(budgets)
     for ll=1:length(lams)
@@ -147,7 +153,7 @@ for ins=1:length(budgets)
             %cvx_solver mosek
             %cvx_solver_settings('MSK_DPAR_MIO_MAX_TIME', 120)
             %cvx_save_prefs
-            cvx_begin quiet
+            cvx_begin
                 
                 variable s(n)
                 variable s_bin(n) binary
@@ -167,9 +173,9 @@ for ins=1:length(budgets)
                 obj = obj + 1e-6*(sum(sum(op_link_cost.*a_prim))); %operation costs
                 %obj = obj + 1e-6*lam*sum(sum((link_cost.*a_bin))) + 1e-6*lam*sum(station_cost'.*s_bin); %fixed construction costs
                 
-                %obj = obj + 1e-6*(sum(sum(inv_pos(M.*(1-a_bin) + congestion_coef_links.*delta_a + eps)))) + 1e-6*(sum(inv_pos(M.*(1-s_bin)+congestion_coef_stations'.*delta_s + eps))); %congestion costs
+                obj = obj + 1e-6*(sum(sum(inv_pos(M.*(1-a_bin) + congestion_coef_links.*delta_a + eps)))) + 1e-6*(sum(inv_pos(M.*(1-s_bin)+congestion_coef_stations'.*delta_s + eps))); %congestion costs
                  %if iter < niters
-                obj = obj + 1e-6*(sum(sum(inv_pos(congestion_coef_links.*delta_a + eps)))) + 1e-6*(sum(inv_pos(congestion_coef_stations'.*delta_s + eps))); %congestion costs
+                %obj = obj + 1e-6*(sum(sum(inv_pos(congestion_coef_links.*delta_a + eps)))) + 1e-6*(sum(inv_pos(congestion_coef_stations'.*delta_s + eps))); %congestion costs
                  %end
 %                 if iter == niters
 %                     for i=1:n
@@ -289,7 +295,7 @@ for ins=1:length(budgets)
         budget = get_budget(s_bin,s_prim,a_bin,a_prim,n,...
             station_cost,station_capacity_slope,link_cost,link_capacity_slope,lam);
         disp(budget);
-        filename = sprintf('./results/betas/sol_MIPnoLuis_sparsityaprim_budget=beta%d_lam=%d.mat',beta,lam);
+        filename = sprintf('./results/betas/sol_MIP_sparsityaprim_budget=beta%d_lam=%d.mat',beta,lam);
         save(filename,'s','s_bin','s_prim','delta_s', ...
             'a','a_bin','a_prim','delta_a','f','fext','fij','obj_val','comp_time','budget');
     end
