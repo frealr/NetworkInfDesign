@@ -483,7 +483,7 @@ betas= [1.25,1.5];
 lams = [5,6];
 list_of_parameters = {'demand','alt_time','prices','alt_price','fixed_costs',...
     'linear_costs','op_cost'};
-param_name = string('op_cost');
+param_name = string('alt_time');
 
 sens_coefs = 0.8:0.05:1.2;
 close all;
@@ -502,13 +502,12 @@ for bb=1:length(betas)
     for ll=1:length(lams)
         beta = betas(bb);
         lam = lams(ll);
-        sens_coef = 1;  
-        if ~((beta == 1.5) & (lam == 6))
-            filename = sprintf('./uthopy_results/sol_beta=%d_lam=%d_sens_analysis_beta_%s_coef=%d.mat',beta,lam,param_name,sens_coef);  
-            load(filename);
-            obj_noms(bb,ll) = obj_val;
-            bud_noms(bb,ll) = budget;
-        end
+        sens_coef = 1;
+        obj_noms(bb,ll) = 0;
+      %  filename = sprintf('./uthopy_results/sol_beta=%d_lam=%d_sens_analysis_beta_%s_coef=%d.mat',beta,lam,param_name,sens_coef);
+       % load(filename);
+%         obj_noms(bb,ll) = obj_val;
+%         bud_noms(bb,ll) = budget;
     end
 end
 
