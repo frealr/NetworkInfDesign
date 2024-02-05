@@ -286,7 +286,7 @@ function [n,link_cost,station_cost,...
     %digo que es el estudio de la ruta
     
     %fixed cost for constructing stations
-    station_cost = 1e4.*ones(1,n); %oficinas, tasas del aeropuerto 
+    station_cost = 2e3.*ones(1,n); %oficinas, tasas del aeropuerto 
     
     station_capacity_slope = 4*5e2.*ones(1,n); %500 e dia por estacionamiento aeronaves
 
