@@ -1,79 +1,86 @@
 close all;
 clear all;
 clc;
+
 %% Resolvemos los problemas por separado para calcular el punto de utopía
-
 %Problema del operador:
-
 %op_obj = operation_costs
 %obj_val = 0
-
-
 %Problema de los pasajeros:
 %pax_obj = (distances + prices) + entropies + congestion
 %obj_val. Se calcula para un presupuesto dado. En este caso daremos un
 %valor a beta, calculamos el presupuest obtenido y lo mantenemos todo el
 %tiempo.
-
-betas = [0.25,0.5,0.75,1,1.25,1.5,1.75,2,2.5];
-betas = [1];
-
+betas = [5,10,20,50];
+lams = [100,300,1000];
+%betas a simular despues con alfa = 1: 0.5 hasta 2, de 0.1 en 0.1), subir
+%threshold para matar arcos hasta 1 o 2 (preguntar), los mas bajos salen 16, pero en la iter 9 había 220 mayores que 1, y 376 al quitar coste fijo con 0.1 de threshold.
 budgets = zeros(length(betas),1);
-
 cvx_solver_settings -clearall
 cvx_solver mosek
 cvx_precision default
 cvx_save_prefs 
-
 num_workers = 2;
-% Inicia el parpool (piscina de trabajadores) para parfor
-%parpool('local', num_workers); % num_workers es el número de trabajadores a utilizar
-
-
-for bb=1:length(betas)
-    eps = 1e-3;
-    alfa = 0;
-    lam = 1;
-    beta = betas(bb);
-    dm_pax = 1; %calcular con análisis de utopía
-    dm_op = 1; %calcular con análisis de utopía
-    [s,s_prim,delta_s,delta_s_prim,a,f,fext,fij,comp_time,budget,obj_val,...
-    pax_obj,op_obj] = compute_sim(lam,beta,alfa,dm_pax,dm_op);
-
-    disp(['nlinks =',num2str(sum(sum(a > eps)))]);
-    
-    disp(['budget = ',num2str(budget)]);
-    budgets(bb) = budget;
-    
-    disp(['obj_val = ',num2str(obj_val),', pax_obj = ',num2str(pax_obj), ...
-        ', op_obj = ',num2str(op_obj)]);
-
+% Inicia el parpool para parfor
+parpool('local', num_workers); % num_workers es el número de trabajadores a utilizar
+parfor bb=1:length(betas)
+    for ll=1:length(lams)
+        eps = 1e-3;
+        alfa = 0.5;
+        lam = lams(ll);
+        beta = betas(bb);
+        dm_pax = 1; %calcular con análisis de utopía
+        dm_op = 1; %calcular con análisis de utopía
+        [s,s_prim,delta_s,delta_s_prim,a,f,fext,fij,comp_time,budget,obj_val,...
+        pax_obj,op_obj] = compute_sim(lam,beta,alfa,dm_pax,dm_op);
+        disp(['nlinks =',num2str(sum(sum(a > 1)))]);
+        
+        disp(['budget = ',num2str(budget)]);
+        budgets(bb) = budget;
+        
+        disp(['obj_val = ',num2str(obj_val),', pax_obj = ',num2str(pax_obj), ...
+            ', op_obj = ',num2str(op_obj)]);
+    end
 end
-
-
 % Cierra el parpool
-%delete(gcp);
-
-
-
+delete(gcp);
+%%
+betas = [5,10,20,50];
+lams = [100,300,1000];
+[n,link_cost,station_cost,...
+    station_capacity_slope,demand,prices,...
+    op_link_cost,congestion_coef_airline, congestion_coef_airport,...
+    travel_time,alt_time,alt_price,a_nom,tau,sigma,...
+    a_max,trans_time,s_max] = parameters_aero_network();
+for bb=1:length(betas)
+    for ll=1:length(lams)
+        beta_or = betas(bb);
+        lam = lams(ll);
+        filename = sprintf('./aero_results/prelim_sol_beta=%d_lam=%d.mat',beta_or,lam);
+        load(filename);
+        disp(['beta = ',num2str(beta_or)]);
+        disp(['nlinks =',num2str(sum(sum(a > 1)))]);
+        disp(['budget = ',num2str(budget)]);
+        att_dem = sum(sum(demand.*f))/sum(sum(demand));
+        disp(['att dem = ',num2str(att_dem)]);
+    end
+end
 %% Functions
-
 function budget = get_budget(s_prim,a,n,...
     station_cost,station_capacity_slope,link_cost,lam)
     budget = 0;
     for i=1:n
-        if s_prim(i) > 1e-3
-            budget = budget + lam*station_cost(i) + ...
+        if s_prim(i) > 1
+            budget = budget + station_cost(i) + ...
                 station_capacity_slope(i)*s_prim(i);
         end
         for j=1:n
-            if a(i,j) > 1e-3
-                budget = budget + lam*link_cost(i,j);
+            if a(i,j) > 1
+                budget = budget + link_cost(i,j);
             end
         end
     end
 end
-
 function [obj_val,pax_obj,op_obj] = get_obj_val(alfa, op_link_cost,...
     congestion_coef_airline,congestion_coef_airport,travel_time,prices,alt_time,alt_price,a, ...
     s_prim,delta_s,delta_s_prim,fij,f,fext,demand,dm_pax,dm_op,coef_logit,trans_time)
@@ -94,29 +101,25 @@ function [obj_val,pax_obj,op_obj] = get_obj_val(alfa, op_link_cost,...
         end
     end
     pax_obj = pax_obj + 1e-8*(sum(sum(demand.*prices.*(alt_time+0.01.*alt_price).*fext.*coef_logit)));
-    pax_obj = pax_obj + 1e-8*(sum(sum(demand.*prices.*(-entr(f) - f)))) + 1e-8*(sum(sum(demand.*prices.*0.01.*prices.*f.*coef_logit)));
-    pax_obj = pax_obj + 1e-8*(sum(sum(demand.*prices.*(-entr(fext) - fext))));
+    pax_obj = pax_obj + 1e-8*(sum(sum(demand.*prices.*(max(-entr(f),0) - f)))) + 1e-8*(sum(sum(demand.*prices.*0.01.*prices.*f.*coef_logit)));
+    pax_obj = pax_obj + 1e-8*(sum(sum(demand.*prices.*(max(-entr(fext),0) - fext))));
     obj_val = (alfa/(dm_pax))*pax_obj + ((1-alfa)/(dm_op))*op_obj;
 end
-
-
 function [s,s_prim,delta_s,delta_s_prim,a,f,fext,fij,comp_time,budget,obj_val,...
     pax_obj,op_obj] = compute_sim(lam,beta_or,alfa,dm_pax,dm_op)
-
     [n,link_cost,station_cost,...
     station_capacity_slope,demand,prices,...
     op_link_cost,congestion_coef_airline, congestion_coef_airport,...
     travel_time,alt_time,alt_price,a_nom,tau,sigma,...
     a_max,trans_time,s_max] = parameters_aero_network();
-
-    niters = 1;           
+    niters = 10;           
     eps = 1e-3;
     a_prev = 1e4.*ones(n);
     s_prev= 1e4.*ones(n,1);
     disp(['beta = ',num2str(beta_or),', lam = ',num2str(lam)]);
     tic;
     for iter=1:niters
-        cvx_begin
+        cvx_begin quiet
             variable s(n)
             variable s_prim(n)
             variable delta_s(n)
@@ -133,8 +136,8 @@ function [s,s_prim,delta_s,delta_s_prim,a,f,fext,fij,comp_time,budget,obj_val,..
             op_obj = op_obj + 1e-8*(sum(sum(op_link_cost.*a))); %operation costs
             if iter < niters
                 pax_obj = pax_obj + 1e-8*(sum(inv_pos(congestion_coef_airline.*delta_s + eps))) + 1e-8*(sum(inv_pos(congestion_coef_airport.*delta_s_prim + eps))); %congestion costs
-                bud_obj = bud_obj + 1e-8*lam*sum(sum((link_cost.*a.*(1./(a_prev+eps))))) + 1e-8*lam*sum((station_cost'.*s_prim.*(1./(s_prev+eps)))); %fixed construction costs
-                
+                bud_obj = bud_obj + 1e-8*sum(sum((link_cost.*a.*(1./(a_prev+eps))))) + 1e-8*sum((station_cost'.*s_prim.*(1./(s_prev+eps)))); %fixed construction costs
+                bud_obj = bud_obj + 1e-8*lam*sum(sum((link_cost.*a.*(1./(a_prev+eps))))) + 1e-8*lam*sum((station_cost'.*s_prim.*(1./(s_prev+eps)))); %fixed sparsity costs
             end
     
             for o=1:n
@@ -144,7 +147,7 @@ function [s,s_prim,delta_s,delta_s_prim,a,f,fext,fij,comp_time,budget,obj_val,..
             end
             pax_obj = pax_obj + 1e-8*(sum(sum(demand.*prices.*(alt_time+0.01.*alt_price).*fext.*coef_logit)));
             pax_obj = pax_obj + 1e-8*(sum(sum(demand.*prices.*(-entr(f) - f)))) + 1e-8*(sum(sum(demand.*prices.*0.01.*prices.*f.*coef_logit)));
-            pax_obj = pax_obj + 1e-8*(sum(sum(demand.*prices.*(-entr(fext) - fext))));
+            pax_obj = pax_obj + 1e-8*(sum(sum(demand.*prices.*(-5.*entr(0.2.*fext) - fext))));
     
     
             if iter == niters
@@ -184,7 +187,6 @@ function [s,s_prim,delta_s,delta_s_prim,a,f,fext,fij,comp_time,budget,obj_val,..
                     sum(fij(o,:,o,d)) == f(o,d);
                 end
             end
-
             for i=1:n
                 a(i,i) == 0;
             end
@@ -214,20 +216,19 @@ function [s,s_prim,delta_s,delta_s_prim,a,f,fext,fij,comp_time,budget,obj_val,..
                     end
                 end
             end
-%             for o=1:n
-%                 for d=1:n
-%                     prices(o,d)*demand(o,d)*f(o,d) >=
-%                     sum(sum(demand(o,d).*fij(:,:,o,d).*op_link_cost./a_nom));
-%                     %ver eso
-%                 end
-%             end
+            for o=1:n
+                for d=1:n
+                    prices(o,d)*demand(o,d)*f(o,d) >= sum(sum(demand(o,d).*fij(:,:,o,d).*op_link_cost./a_nom));
+                    %ver eso
+                end
+            end
             if iter == niters
                 for i=1:n
-                    if s_prev(i) <= 0.1
+                    if s_prev(i) <= 1
                         s_prim(i) == 0;
                     end
                     for j=1:n
-                        if a_prev(i,j) <= 0.1
+                        if a_prev(i,j) <= 1
                             a(i,j) == 0;
                          end
                      end
@@ -237,7 +238,11 @@ function [s,s_prim,delta_s,delta_s_prim,a,f,fext,fij,comp_time,budget,obj_val,..
         cvx_end
         a_prev = a;
         s_prev = s_prim;
-        disp(s_prim);
+        disp(['iter = ',num2str(iter),', beta = ',num2str(beta_or),', lam = ',num2str(lam),', nlinks =',num2str(sum(sum(a > 1)))]);
+        if (sum(sum(a > 1)) < 1)
+            disp(['abandono para beta = ',num2str(beta_or),', lam = ',num2str(lam)]);
+            break;
+        end
     end
     comp_time = toc;
     
@@ -251,16 +256,12 @@ function [s,s_prim,delta_s,delta_s_prim,a,f,fext,fij,comp_time,budget,obj_val,..
     filename = sprintf('./aero_results/prelim_sol_beta=%d_lam=%d.mat',beta_or,lam);
     save(filename,'s','s_prim','delta_s','delta_s_prim', ...
         'a','f','fext','fij','obj_val','pax_obj','op_obj','comp_time','budget');
-
 end
-
-
 function [n,link_cost,station_cost,...
     station_capacity_slope,demand,prices,...
     op_link_cost,congestion_coef_airline, congestion_coef_airport,...
     travel_time,alt_time,alt_price,a_nom,tau,sigma,...
     a_max,trans_time,s_max] = parameters_aero_network()
-
     n = 25; 
     CAB_data = readtable('./CAB_data.xlsx');
     coor_x = table2array(CAB_data(1:25,1));
@@ -270,30 +271,25 @@ function [n,link_cost,station_cost,...
     for i=1:n
         distance(i,i) = 0;
         for j=i+1:n
-            distance(i,j) = sqrt((coor_x(i) - coor_x(j))^2 + ...
+            distance(i,j) = sqrt((coor_x(i) - coor_x(j)).^2 + ...
             (coor_y(i)-coor_y(j)).^2);
             distance(j,i) = distance(i,j);
         end
     end
     
-    
-    
     %cost of using the alternative network for each o-d pair
-    alt_cost = abs(distance + 3e2.*randn(n));
+    rng(1,"twister"); %seed
+    alt_cost = abs(distance + 3e2.*randn(n)); 
     
     %fixed cost for constructing links
-    link_cost = 1e3.*distance;
+    link_cost = distance; %poner muy pequeño, si no forzar sparsity aparte.
     link_cost(link_cost == 0) = 1e9;
     
     %fixed cost for constructing stations
-    station_cost = 1e4.*mean(distance);
+    station_cost = 1e4.*ones(1,n); %oficinas, tasas del aeropuerto
     
-    station_capacity_slope = 0.000005.*station_cost;
-   
-    
-    % Op Link Cost
-    op_link_cost = 5e2.*distance;
-    
+    station_capacity_slope = 240.*ones(1,n); %pensar: mostradores, coste de personal simultaneo
+
     % Congestion Coefficients
     congestion_coef_airline = 0.1;
     congestion_coef_airport = 0.1;
@@ -302,10 +298,13 @@ function [n,link_cost,station_cost,...
     prices = (distance).^(0.7);
     
     % Travel Time
-    travel_time = distance ./ 450; % Time in hours
+    travel_time = distance ./ 450 + 0.6; % Time in hours
     
     % Alt Time
-    alt_time = alt_cost ./ 450; % Time in hours
+    alt_time = alt_cost ./ 450 + 0.6; % Time in hours
+
+    % Op Link Cost
+    op_link_cost = 5e3.*travel_time; %5k/hora
     trans_time = ones(n,n,n,n);
     
     for o=1:n
